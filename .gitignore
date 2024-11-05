@@ -6,6 +6,11 @@ __pycache__/
 # C extensions
 *.so
 
+# Repositórios do projeto
+/temp_dir
+/test_files
+arqfinal
+
 # Distribution / packaging
 .Python
 build/
