@@ -1,6 +1,5 @@
 import threading
 import os
-import glob
 
 # Função Map que gera arquivos temporários
 def map_function(file_part, output_dir):
@@ -17,27 +16,15 @@ def map_function(file_part, output_dir):
                     word_count[word] += 1
 
     # Gravar o resultado em um arquivo temporário
-    with open(os.path.join(output_dir, f"map_{os.path.basename(file_part)}.txt"), 'w') as f_out:
+    with open(os.path.join(output_dir, 'arq.tmp'), 'a') as f_out:
         for word, count in word_count.items():
-            f_out.write(f"{word}: {count}\n")
-
+            f_out.write(f"{word} {count}\n")
+            
 # Função Reduce que lê os arquivos temporários e consolida as contagens
-def reduce_function(output_dir):
-    word_count = {}
-
-    # Lê todos os arquivos temporários gerados pela função Map
-    for temp_file in glob.glob(os.path.join(output_dir, "map_*.txt")):
-        with open(temp_file, 'r') as f:
-            for line in f:
-                word, count = line.strip().split(": ")
-                if word in word_count:
-                    word_count[word] += int(count)
-                else:
-                    word_count[word] = int(count)
-
-    # Imprimir os resultados finais
-    for word, count in word_count.items():
-        print(f"Reduce({word}) -> {count}")
+def reduce_function(key, value):
+    arq_final = open('arqfinal', 'a')
+    arq_final.write(f"{key} {sum(value)}\n")
+    arq_final.close()
 
 # Controlador que gerencia as threads de Map e Reduce
 def controller(input_files, output_dir):
@@ -57,14 +44,28 @@ def controller(input_files, output_dir):
     for t in map_threads:
         t.join()
 
-    # Executa a função Reduce em uma thread
-    reduce_thread = threading.Thread(target=reduce_function, args=(output_dir,))
-    reduce_thread.start()
-    reduce_thread.join()
+    # Agrupar os resultados do arquivo temporário
+    agrupamento = {}
+    tmp = open(os.path.join(output_dir, 'arq.tmp'), 'r')
+    for line in tmp:
+        key, value = line.split()
+        if key in agrupamento:
+            agrupamento[key].append(int(value))
+        else:
+            agrupamento[key] = [int(value)]
+    
+    tmp.close()
 
-    # Limpar arquivos temporários
-    for temp_file in glob.glob(os.path.join(output_dir, "map_*.txt")):
-        os.remove(temp_file)
+    # Executar a função Reduce em threads separadas para cada chave
+    reduce_threads = []
+    for key in agrupamento.keys():
+        t = threading.Thread(target=reduce_function, args=(key, agrupamento[key]))
+        reduce_threads.append(t)
+        t.start()
+
+    # Espera todas as threads Reduce terminarem
+    for t in reduce_threads:
+        t.join()
 
 # Exemplo de uso
 if __name__ == "__main__":
@@ -74,6 +75,7 @@ if __name__ == "__main__":
 
     # Obter os arquivos gerados pelo FileGenerator
     input_files = [os.path.join(test_files_dir, f) for f in os.listdir(test_files_dir) if f.endswith('.txt')]
+    print(input_files)
 
     # Executar o controlador MapReduce com os arquivos gerados
     controller(input_files, output_dir)
